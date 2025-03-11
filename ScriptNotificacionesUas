@@ -1,8 +1,8 @@
 // ==UserScript==
-// @name         Comunicacion Vuelo UAS
+// @name         Comunicacion Operacion UAS
 // @namespace    http://tampermonkey.net/
 // @version      2025-03-03
-// @description  try to take over the world!
+// @description  Comunicacion Operacion UAS en Web del Ministerio de Interior
 // @author       You
 // @match        https://drones.ses.mir.es/drones-web/formulario
 // @icon         https://www.google.com/s2/favicons?sz=64&domain=mir.es
