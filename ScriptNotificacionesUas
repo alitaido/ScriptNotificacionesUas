@@ -1,8 +1,8 @@
 // ==UserScript==
-// @name         Comunicacion Operacion UAS
+// @name         Comunicacion Vuelo UAS
 // @namespace    http://tampermonkey.net/
 // @version      2025-03-03
-// @description  Comunicacion Operacion UAS en Web del Ministerio de Interior
+// @description  try to take over the world!
 // @author       You
 // @match        https://drones.ses.mir.es/drones-web/formulario
 // @icon         https://www.google.com/s2/favicons?sz=64&domain=mir.es
@@ -12,13 +12,44 @@
 (function() {
     'use strict';
 
+
+
     // Create UI elements
     const container = createContainer();
     const idText = createIdText(container);
     const operatorSelect = createOperatorSelect(container);
     const fillButton = createButton(container, 'Rellena', handleFillButtonClick);
     const saveButton = createButton(container, 'Graba', handleSaveButtonClick);
-    const deleteButton = createButton(container, 'Elimina', handleDeleteButtonClick);
+    // add a button with the three lines aspect to open a submenu with the options elimina, importa, exporta
+    const menuButton = document.createElement('button');
+    menuButton.innerText = '≡';
+    menuButton.style.width = '30px';
+    menuButton.style.height = '30px';
+    // add a div to contain the submenu 
+    const menuDiv = document.createElement('div');
+    menuDiv.style.display = 'none';
+    menuDiv.style.position = 'fixed';
+    menuDiv.style.top = '40px';
+    menuDiv.style.right = '10px';
+    // add the buttons to the submenu
+    const deleteButton = createButton(menuDiv, 'Elimina', handleDeleteButtonClick);
+    const importButton = createButton(menuDiv, 'Importa', handleImportButtonClick);
+    const exportButton = createButton(menuDiv, 'Exporta', handleExportButtonClick);
+
+    // add the buttons to the submenu
+    container.appendChild(menuButton);
+    container.appendChild(menuDiv);
+
+    // add the event listener to the menu button
+    menuButton.addEventListener('click', () => {
+        if (menuDiv.style.display === 'none') {
+            menuDiv.style.display = 'block';
+        } else {
+            menuDiv.style.display = 'none';
+        }
+    });
+
+    const delayAfterCombo = 500
 
     // Initialize
     initialize();
@@ -71,14 +102,30 @@
     }
 
     function updateSelect() {
+        const prevValue = operatorSelect.value;
         operatorSelect.innerHTML = '';
-        const operators = JSON.parse(getCookie(idText.innerText) || '[]');
-        operators.forEach(operator => {
+        const items = JSON.parse(getCookie(idText.innerText) || '[]');
+        items.forEach(item => {
             const option = document.createElement('option');
-            option.value = operator.key;
-            option.innerText = operator.key;
+            option.value = item.key;
+            option.innerText = item.key;
             operatorSelect.appendChild(option);
         });
+        if ((idText.innerText === 'Operador') && (document.querySelector('#formCampos\\:viaOPERADOR').value === '')) {
+            //select the correct operator in the select
+            const key = `${document.querySelector('#formCampos\\:nombreRazonOPERADOR').value} ${document.querySelector('#formCampos\\:apellido1OPERADOR').value} ${document.querySelector('#formCampos\\:apellido2OPERADOR').value}`;
+            //if operatorSelect contains the key, select it
+            if (operatorSelect.querySelector(`option[value="${key}"]`)) {
+                operatorSelect.value = key;
+            }
+        }
+        else
+        {
+            if (prevValue) 
+            {
+                operatorSelect.value = prevValue;       
+            }
+        }
     }
 
     function handleFillButtonClick() {
@@ -140,6 +187,65 @@
         }
     }
 
+    function handleImportButtonClick() {
+        //upload file
+        const fileInput = document.createElement('input');
+        fileInput.type = 'file';
+        fileInput.accept = '.json';
+        fileInput.addEventListener('change', handleFileInputChange);
+        fileInput.click();
+
+        function handleFileInputChange() {
+            const file = fileInput.files[0];
+            const reader = new FileReader();
+            reader.onload = function (e) {
+                //warn user that the data will be overwritten
+                const confirmImport = confirm('¿Estás seguro de que deseas importar estos datos? Los datos actuales se sobreescribirán.');
+                if (!confirmImport)
+                {
+                    return;
+                }
+                const items = JSON.parse(e.target.result);
+                setCookie("Operador", JSON.stringify(items["Operador"]));
+                setCookie("Piloto", JSON.stringify(items["Piloto"]));
+                setCookie("Uas", JSON.stringify(items["Uas"]));
+                setCookie("Observadores", JSON.stringify(items["Observadores"]));
+                setCookie("Operacion", JSON.stringify(items["Operacion"]));
+                updateSelect();
+            }
+            reader.readAsText(file);
+        };
+    }
+
+    function handleExportButtonClick() {
+        //get all cookies for   
+            // "formCampos:campos": "Operador",
+            // "formCampos:camposPiloto": "Piloto",
+            // "formCampos:camposRpa": "Uas",
+            // "formCampos:camposObservadores": "Observadores",
+            // "formCampos:camposRem": "Operacion"
+
+        const items = {}
+        items["Operador"] = JSON.parse(getCookie("Operador") || '[]');
+        items["Piloto"] = JSON.parse(getCookie("Piloto") || '[]');
+        items["Uas"] = JSON.parse(getCookie("Uas") || '[]');
+        items["Observadores"] = JSON.parse(getCookie("Observadores") || '[]');
+        items["Operacion"] = JSON.parse(getCookie("Operacion") || '[]');
+
+        const data = JSON.stringify(items);
+        const blob = new Blob([data], { type: 'application/json' });
+        //download the file
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'data.json';
+        a.click();
+        URL.revokeObjectURL(url);
+    }
+
+       
+
+
     function fillOperatorForm() {
         const operators = JSON.parse(getCookie(idText.innerText) || '[]');
         const selectedOperator = operators.find(op => op.key === operatorSelect.value);
@@ -177,11 +283,11 @@
                                 document.querySelector('#formCampos\\:telefono2OPERADOR').value = formData.telefono2OPERADOR;
                                 document.querySelector('#formCampos\\:emailOPERADOR').value = formData.emailOPERADOR;
                                 document.querySelector('#formCampos\\:codigoOp').value = formData.codigoOp;
-                            }, 1000); // Adjust the delay as needed
+                            }, delayAfterCombo); // Adjust the delay as needed
                         }
-                    }, 1000); // Adjust the delay as needed
+                    }, delayAfterCombo); // Adjust the delay as needed
                 }
-            }, 1000); // Adjust the delay as needed
+            }, delayAfterCombo); // Adjust the delay as needed
         } else {
             alert('No hay operador seleccionado o no se ha encontrado la información del operador!');
         }
@@ -201,9 +307,7 @@
                 comboBoxTipoDocPiloto.dispatchEvent(event);
             }
 
-            setTimeout(() => {
-
-
+            // setTimeout(() => {
                 const comboBoxViaPiloto = document.querySelector('#formCampos\\:tipoViaPILOTO_input');
                 if (comboBoxViaPiloto) {
                     comboBoxViaPiloto.value = formData.tipoViaPILOTO;
@@ -251,12 +355,12 @@
                                     document.querySelector('#formCampos\\:desCertSeguroPil').value = formData.desCertSeguroPil;
                                     document.querySelector('#formCampos\\:fechaVigCertSeguroPil_input').value = formData.fechaVigCertSeguroPil;
                                     document.querySelector('#formCampos\\:entidadCertSeguroPil').value = formData.entidadCertSeguroPil;
-                                }, 1000); // Adjust the delay as needed
+                                }, delayAfterCombo); // Adjust the delay as needed
                             }
-                        }, 1000); // Adjust the delay as needed
+                        }, delayAfterCombo); // Adjust the delay as needed
                     }
-                }, 2000); // Adjust the delay as needed
-            }, 2000); // Adjust the delay as needed
+                }, delayAfterCombo); // Adjust the delay as needed
+            // }, delayAfterCombo); // Adjust the delay as needed
         } else {
             alert('no se hay piloto seleccionado o no se ha encontrado la información del piloto!');
         }
@@ -302,7 +406,7 @@
                 document.querySelector('#formCampos\\:visionRpa').value = formData.visionRpa;
                 document.querySelector('#formCampos\\:modoSRpa').value = formData.modoSRpa;
             }
-            , 1000); // Adjust the delay as needed
+            , delayAfterCombo); // Adjust the delay as needed
         } else {
             alert('No hay UAS seleccionado o no se ha encontrado la información del UAS!');
         }
@@ -321,7 +425,7 @@
                 comboBoxTipoDocObservadores.dispatchEvent(event);
             }
 
-            setTimeout(() => {
+            // setTimeout(() => {
                 const comboBoxViaObservadores = document.querySelector('#formCampos\\:tipoViaOBSERVADORES_input');
                 if (comboBoxViaObservadores) {
                     comboBoxViaObservadores.value = formData.tipoViaOBSERVADORES;
@@ -361,12 +465,12 @@
                                     document.querySelector('#formCampos\\:telefono1OBSERVADORES').value = formData.telefono1OBSERVADORES;
                                     document.querySelector('#formCampos\\:telefono2OBSERVADORES').value = formData.telefono2OBSERVADORES;
                                     document.querySelector('#formCampos\\:emailOBSERVADORES').value = formData.emailOBSERVADORES;
-                                }, 1000); // Adjust the delay as needed
+                                }, delayAfterCombo); // Adjust the delay as needed
                             }
-                        }, 1000); // Adjust the delay as needed
+                        }, delayAfterCombo); // Adjust the delay as needed
                     }
-                }, 1000); // Adjust the delay as needed
-            }, 1000); // Adjust the delay as needed
+                }, delayAfterCombo); // Adjust the delay as needed
+            // }, delayAfterCombo); // Adjust the delay as needed
         } else {
             alert('No hay observador seleccionado o no se ha encontrado la información del observador!');
         }
@@ -652,4 +756,5 @@
         }
         updateIdText();
     }
+
 })();
